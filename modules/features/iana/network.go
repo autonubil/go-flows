@@ -242,6 +242,7 @@ func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.Ev
 
 func init() {
 	flows.RegisterStandardFeature("octetTotalCount", flows.FlowFeature, func() flows.Feature { return &octetTotalCountFlow{} }, flows.RawPacket)
+	flows.RegisterStandardFeature("octetDeltaCount", flows.FlowFeature, func() flows.Feature { return &octetTotalCountFlow{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
