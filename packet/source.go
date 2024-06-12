@@ -119,7 +119,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 	}()
 
 	ret.current, _ = ret.todecode.popEmpty()
-
+	EngineCollector.Register(ret)
 	return ret
 }
 
@@ -146,6 +146,7 @@ func (input *Engine) Finish() {
 	<-input.done
 
 	input.flowtable.flush()
+	EngineCollector.EndRun(input)
 }
 
 // starved gets executed if we couldn't get batchSizes empty packets in one go
@@ -258,6 +259,7 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 	input.packetStats.packets = npackets
 	input.packetStats.filtered = nfiltered
 	input.packetStats.skipped = nskipped
+	EngineCollector.StartRun(input)
 	return
 }
 

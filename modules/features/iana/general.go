@@ -125,7 +125,6 @@ func (f *packetTotalCount) Stop(reason flows.FlowEndReason, context *flows.Event
 
 func init() {
 	flows.RegisterStandardFeature("packetTotalCount", flows.FlowFeature, func() flows.Feature { return &packetTotalCount{} }, flows.RawPacket)
-	flows.RegisterStandardFeature("packetDeltaCount", flows.FlowFeature, func() flows.Feature { return &packetTotalCount{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
