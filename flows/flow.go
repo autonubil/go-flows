@@ -78,6 +78,9 @@ type FlowOptions struct {
 	TCPExpiry bool
 	// SortOutput specifies how the output should be sorted
 	SortOutput SortType
+	// MaxFlows caps the number of concurrent flows in one table (0 = unlimited). A packet that would
+	// open a flow beyond the cap is not tracked; see FlowTable.DroppedFlows.
+	MaxFlows int
 	// CustomSettings contains a map with all the settings read from the flow specification
 	CustomSettings map[string]interface{}
 }

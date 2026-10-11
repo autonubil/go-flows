@@ -21,6 +21,9 @@ type EventTable interface {
 	EOF(flows.DateTimeNanoseconds)
 	// Print table statistics to the given writer
 	PrintStats(io.Writer)
+	// DroppedFlows returns how many new flows all tables refused because they were at
+	// FlowOptions.MaxFlows. Safe to call while the table is running.
+	DroppedFlows() uint64
 	usage() []bufferUsage
 	event(buffer *shallowMultiPacketBuffer)
 	flush()
@@ -71,7 +74,12 @@ func (sft *singleFlowTable) PrintStats(w io.Writer) {
 		`Table statistics:
 	flows: %d
 	peak flows: %d
-`, sft.table.Stats.Flows, sft.table.Stats.Maxflows)
+	dropped flows: %d
+`, sft.table.Stats.Flows, sft.table.Stats.Maxflows, sft.table.DroppedFlows())
+}
+
+func (sft *singleFlowTable) DroppedFlows() uint64 {
+	return sft.table.DroppedFlows()
 }
 
 func (sft *singleFlowTable) getDecodeStats() *decodeStats {
@@ -218,8 +226,17 @@ func (pft *parallelFlowTable) PrintStats(w io.Writer) {
 		packets: %d (%2.2f)
 		flows: %d (%2.2f)
 		peak flows: %d
-`, i+1, table.Stats.Packets, float64(table.Stats.Packets)/float64(sumPackets)*100, table.Stats.Flows, float64(table.Stats.Flows)/float64(sumFlows)*100, table.Stats.Maxflows)
+		dropped flows: %d
+`, i+1, table.Stats.Packets, float64(table.Stats.Packets)/float64(sumPackets)*100, table.Stats.Flows, float64(table.Stats.Flows)/float64(sumFlows)*100, table.Stats.Maxflows, table.DroppedFlows())
 	}
+}
+
+func (pft *parallelFlowTable) DroppedFlows() uint64 {
+	var sum uint64
+	for _, table := range pft.tables {
+		sum += table.DroppedFlows()
+	}
+	return sum
 }
 
 func (pft *parallelFlowTable) getDecodeStats() *decodeStats {

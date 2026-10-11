@@ -1,6 +1,9 @@
 package flows
 
-import "log"
+import (
+	"log"
+	"sync/atomic"
+)
 
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
 type FlowCreator func(Event, *FlowTable, string, bool, *EventContext, uint64) Flow
@@ -13,6 +16,9 @@ type TableStats struct {
 	Flows uint64
 	// Maxflows is the maximum number of concurrent flows processed
 	Maxflows uint64
+	// Dropped is the number of packets that would have opened a new flow while the table was at
+	// MaxFlows. Updated atomically, so DroppedFlows can be read while the table is running.
+	Dropped uint64
 }
 
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
@@ -32,6 +38,8 @@ type FlowTable struct {
 	fivetuple bool
 	eof       bool
 	expiring  bool
+	// lastFull is when the table last swept itself because it was at MaxFlows
+	lastFull DateTimeNanoseconds
 }
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
@@ -124,6 +132,10 @@ func (tab *FlowTable) Event(event Event) {
 		}
 	}
 	if !ok {
+		if tab.full(when) {
+			atomic.AddUint64(&tab.Stats.Dropped, 1)
+			return
+		}
 		elem := tab.newflow(event, tab, key, lowToHigh, tab.context, tab.flowID)
 		tab.flowID++
 		tab.Stats.Flows++
@@ -147,6 +159,27 @@ func (tab *FlowTable) Event(event Event) {
 	if tab.SortOutput == SortTypeStartTime || tab.SortOutput == SortTypeStopTime {
 		tab.flushExports()
 	}
+}
+
+// full reports whether the table is at MaxFlows. At the cap it first expires whatever has timed out,
+// since the caller's periodic Expire can be far off and most of a full table is usually idle flows
+// waiting for it. That sweep walks the whole table, so it runs at most once per second of packet
+// time; in between, new flows are refused outright.
+func (tab *FlowTable) full(when DateTimeNanoseconds) bool {
+	if tab.MaxFlows <= 0 || len(tab.flows) < tab.MaxFlows {
+		return false
+	}
+	if when-tab.lastFull >= SecondsInNanoseconds {
+		tab.lastFull = when
+		tab.Expire(when)
+	}
+	return len(tab.flows) >= tab.MaxFlows
+}
+
+// DroppedFlows returns how many new flows were refused because the table was at MaxFlows. Safe to
+// call concurrently with Event.
+func (tab *FlowTable) DroppedFlows() uint64 {
+	return atomic.LoadUint64(&tab.Stats.Dropped)
 }
 
 func (tab *FlowTable) flushExports() {
