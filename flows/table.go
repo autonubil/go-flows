@@ -244,12 +244,19 @@ func (tab *FlowTable) flushAllExports() {
 }
 
 func (tab *FlowTable) remove(entry Flow) {
-	if !tab.eof {
-		old := tab.flows[entry.Key()]
-		tab.flowlist[old] = nil
-		tab.freelist = append(tab.freelist, old)
-		delete(tab.flows, entry.Key())
+	if tab.eof {
+		return
 	}
+	// Only free the slot this flow holds. A key that is gone reads as slot 0, and freeing that
+	// would hand another flow's slot to the next new flow: both keys then point at it, and the
+	// older flow's packets are counted under the newer flow.
+	old, ok := tab.flows[entry.Key()]
+	if !ok || tab.flowlist[old] == nil || tab.flowlist[old].ID() != entry.ID() {
+		return
+	}
+	tab.flowlist[old] = nil
+	tab.freelist = append(tab.freelist, old)
+	delete(tab.flows, entry.Key())
 }
 
 // EOF needs to be called upon end of file (e.g., program termination). All outstanding timers get expired, and the rest of the flows terminated with an eof event.

@@ -98,7 +98,12 @@ type BaseFlow struct {
 }
 
 // Stop destroys the resources associated with this flow. Call this to cancel the flow without exporting it or notifying the features.
+// Stopping a stopped flow does nothing: a feature that exports the flow from within Event stops it,
+// and Event stops it again once the records are inactive.
 func (flow *BaseFlow) Stop() {
+	if !flow.active {
+		return
+	}
 	flow.records.Destroy()
 	flow.table.remove(flow)
 	flow.active = false
